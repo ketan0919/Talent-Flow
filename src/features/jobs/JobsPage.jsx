@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect, useState } from 'react';
 import { sampleTags } from '../../utils';
 import JobEditor from './JobEditor.jsx';

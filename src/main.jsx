@@ -1,23 +1,48 @@
+// src/main.jsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import './styles.css';
-import { worker } from './mocks/browser.js';
 import JobsPage from './features/jobs/JobsPage.jsx';
 import JobDetails from './features/jobs/JobDetails.jsx';
 import Login from './pages/Login.jsx';
 import { AuthProvider, useAuth } from './auth/AuthProvider.jsx';
 
-await worker.start({ onUnhandledRequest: 'bypass' });
+// Start MSW asynchronously and expose a readiness promise
+window.__mswReady = (async () => {
+  try {
+    const { worker } = await import('./mocks/browser.js');
+    await worker.start({ onUnhandledRequest: 'bypass' });
+    console.info('[MSW] ready');
+    return true;
+  } catch (e) {
+    console.warn('[MSW] failed to start, continuing without mocks:', e);
+    return false;
+  }
+})();
 
-function Protected({ children }){ const { user } = useAuth(); return user ? children : <Navigate to="/login" replace />; }
-function HeaderBar(){ const { user, logout } = useAuth(); const nav=useNavigate();
-  return <header className="header" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-    <b>Mini Hiring Platform</b>
-    {user && <div className="row"><span className="badge">{user.name} · {user.role}</span><button className="btn" onClick={()=>{logout(); nav('/login',{replace:true});}}>Logout</button></div>}
-  </header>;
+function Protected({ children }) {
+  const { user } = useAuth();
+  return user ? children : <Navigate to="/login" replace />;
 }
-function Shell(){
+
+function HeaderBar() {
+  const { user, logout } = useAuth();
+  const nav = useNavigate();
+  return (
+    <header className="header" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <b>Mini Hiring Platform</b>
+      {user && (
+        <div className="row">
+          <span className="badge">{user.name} · {user.role}</span>
+          <button className="btn" onClick={() => { logout(); nav('/login', { replace: true }); }}>Logout</button>
+        </div>
+      )}
+    </header>
+  );
+}
+
+function Shell() {
   return (
     <div className="app">
       <aside className="sidebar">
@@ -43,5 +68,22 @@ function Shell(){
     </div>
   );
 }
-function App(){ return (<AuthProvider><Routes><Route path="/login" element={<Login/>}/><Route path="/*" element={<Shell/>}/></Routes></AuthProvider>); }
-ReactDOM.createRoot(document.getElementById('root')).render(<React.StrictMode><BrowserRouter><App/></BrowserRouter></React.StrictMode>);
+
+function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/*" element={<Shell />} />
+      </Routes>
+    </AuthProvider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>
+);

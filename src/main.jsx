@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 're
 import './styles.css';
 import { worker } from './mocks/browser.js';
 import JobsPage from './features/jobs/JobsPage.jsx';
+import JobDetails from './features/jobs/JobDetails.jsx';
 import Login from './pages/Login.jsx';
 import { AuthProvider, useAuth } from './auth/AuthProvider.jsx';
 
@@ -33,6 +34,7 @@ function Shell(){
           <Routes>
             <Route path="/" element={<Navigate to="/jobs" replace />} />
             <Route path="/jobs" element={<Protected><JobsPage /></Protected>} />
+            <Route path="/jobs/:jobId" element={<Protected><JobDetails /></Protected>} />
             <Route path="/candidates" element={<Protected><div className="section">Candidates (Day 2)</div></Protected>} />
             <Route path="/assessments" element={<Protected><div className="section">Assessments (Day 2)</div></Protected>} />
           </Routes>

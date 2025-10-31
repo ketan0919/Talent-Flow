@@ -1,50 +1,68 @@
 // src/auth/AuthProvider.jsx
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
+
 const AuthCtx = createContext(null);
 
-export function AuthProvider({ children }){
-  const [user,setUser]=useState(null);
-  const [token,setToken]=useState(null);
+function readSaved() {
+  try {
+    const raw = localStorage.getItem('tf_auth');
+    if (!raw) return { user: null, token: null };
+    const j = JSON.parse(raw);
+    return { user: j.user || null, token: j.token || null };
+  } catch {
+    return { user: null, token: null };
+  }
+}
 
-  useEffect(()=>{ 
-    const saved=localStorage.getItem('tf_auth'); 
-    if(saved){ try{ const j=JSON.parse(saved); setUser(j.user); setToken(j.token);}catch{} }
-  },[]);
+export function AuthProvider({ children }) {
+  // Read synchronously so we don't flash-redirect before we know the user
+  const saved = readSaved();
+  const [user, setUser] = useState(saved.user);
+  const [token, setToken] = useState(saved.token);
+  const [ready] = useState(true); // already hydrated synchronously
 
-  function persist(u,t){ localStorage.setItem('tf_auth', JSON.stringify({ user:u, token:t })); }
+  function persist(u, t) {
+    localStorage.setItem('tf_auth', JSON.stringify({ user: u, token: t }));
+  }
 
-  async function login(email,password){
-    // Ensure MSW worker is started before the first fetch
+  async function login(email, password) {
+    // ensure MSW is up before first fetch
     try {
       if (window.__mswReady && typeof window.__mswReady.then === 'function') {
         await window.__mswReady;
       }
-    } catch { /* ignore */ }
-
+    } catch {}
     let res;
     try {
       res = await fetch('/auth/login', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email,password })
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
       });
-    } catch (e) {
-      throw new Error('Network error. Check that the app is served via Vite and MSW worker is active.');
+    } catch {
+      throw new Error('Network error. Is the dev server running?');
     }
-
     if (!res.ok) {
       let msg = 'Login failed';
       try { const j = await res.json(); msg = j.message || msg; } catch {}
       throw new Error(msg);
     }
-
     const j = await res.json();
-    setUser(j.user); setToken(j.token); persist(j.user,j.token);
+    setUser(j.user); setToken(j.token); persist(j.user, j.token);
   }
 
-  function logout(){ setUser(null); setToken(null); localStorage.removeItem('tf_auth'); }
+  function logout() {
+    setUser(null); setToken(null);
+    localStorage.removeItem('tf_auth');
+  }
 
-  return <AuthCtx.Provider value={{ user, token, login, logout }}>{children}</AuthCtx.Provider>;
+  return (
+    <AuthCtx.Provider value={{ user, token, ready, login, logout }}>
+      {children}
+    </AuthCtx.Provider>
+  );
 }
 
-export function useAuth(){ return useContext(AuthCtx); }
+export function useAuth() {
+  return useContext(AuthCtx);
+}

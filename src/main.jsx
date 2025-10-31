@@ -7,8 +7,12 @@ import JobsPage from './features/jobs/JobsPage.jsx';
 import JobDetails from './features/jobs/JobDetails.jsx';
 import Login from './pages/Login.jsx';
 import { AuthProvider, useAuth } from './auth/AuthProvider.jsx';
+import CandidatesPage from './features/candidates/CandidatesPage.jsx';
+import CandidateProfile from './features/candidates/CandidateProfile.jsx';
+import KanbanBoard from './features/candidates/KanbanBoard.jsx';
+import AssessmentsPage from './features/assessments/AssessmentsPage.jsx';
 
-// Start MSW asynchronously and expose a readiness promise
+// Start MSW asynchronously and expose readiness
 window.__mswReady = (async () => {
   try {
     const { worker } = await import('./mocks/browser.js');
@@ -22,10 +26,10 @@ window.__mswReady = (async () => {
 })();
 
 function Protected({ children }) {
-  const { user } = useAuth();
-  return user ? children : <Navigate to="/login" replace />;
-}
-
+    const { user, ready } = useAuth();
+    if (!ready) return <div className="section">Loading…</div>;
+    return user ? children : <Navigate to="/login" replace />;
+  }
 function HeaderBar() {
   const { user, logout } = useAuth();
   const nav = useNavigate();
@@ -41,7 +45,6 @@ function HeaderBar() {
     </header>
   );
 }
-
 function Shell() {
   return (
     <div className="app">
@@ -60,15 +63,19 @@ function Shell() {
             <Route path="/" element={<Navigate to="/jobs" replace />} />
             <Route path="/jobs" element={<Protected><JobsPage /></Protected>} />
             <Route path="/jobs/:jobId" element={<Protected><JobDetails /></Protected>} />
-            <Route path="/candidates" element={<Protected><div className="section">Candidates (Day 2)</div></Protected>} />
-            <Route path="/assessments" element={<Protected><div className="section">Assessments (Day 2)</div></Protected>} />
+
+            <Route path="/candidates" element={<Protected><CandidatesPage /></Protected>} />
+            <Route path="/candidates/:id" element={<Protected><CandidateProfile /></Protected>} />
+            <Route path="/candidates/board" element={<Protected><KanbanBoard /></Protected>} />
+
+            <Route path="/assessments" element={<Protected><AssessmentsPage /></Protected>} />
+            <Route path="/assessments/:jobId" element={<Protected><AssessmentsPage /></Protected>} />
           </Routes>
         </div>
       </main>
     </div>
   );
 }
-
 function App() {
   return (
     <AuthProvider>
@@ -79,7 +86,6 @@ function App() {
     </AuthProvider>
   );
 }
-
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

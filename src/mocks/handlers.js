@@ -1,3 +1,4 @@
+// src/mocks/handlers.js
 import { http, HttpResponse } from 'msw';
 import { db } from '../db';
 import { ensureSeed } from '../seed';
@@ -79,25 +80,56 @@ export const handlers = [
     return HttpResponse.json({ ok:true });
   }, true)),
 
-  // Day 2 stubs
-  http.get('/candidates', async () => withLatency(async ()=>{
-    const list=await db.candidates.toArray(); list.sort((a,b)=>a.name.localeCompare(b.name));
+  // Candidates
+  http.get('/candidates', ({ request }) => withLatency(async ()=>{
+    const url=new URL(request.url); const stage=url.searchParams.get('stage')||'all';
+    let list=await db.candidates.toArray(); if(stage!=='all') list=list.filter(c=>c.stage===stage);
+    list.sort((a,b)=>a.name.localeCompare(b.name));
     return HttpResponse.json({ items:list, total:list.length });
   })),
+  http.get('/candidates/:id', ({ params }) => withLatency(async ()=>{
+    const c=await db.candidates.get(params.id);
+    return c ? HttpResponse.json(c) : HttpResponse.json({ message:'Not found' }, { status:404 });
+  })),
+  http.patch('/candidates/:id', ({ params, request }) => withLatency(async ()=>{
+    const patch=await request.json();
+    const cand=await db.candidates.get(params.id);
+    if(!cand) return HttpResponse.json({ message:'Not found' }, { status:404 });
+    await db.candidates.update(cand.id, patch);
+    if (patch.stage && patch.stage !== cand.stage) {
+      await db.timeline.add({ id:crypto.randomUUID(), candidateId:cand.id, from:cand.stage, to:patch.stage, at:Date.now() });
+    }
+    return HttpResponse.json({ ...cand, ...patch });
+  }, true)),
   http.get('/candidates/:id/timeline', ({ params }) => withLatency(async ()=>{
     const items=await db.timeline.where('candidateId').equals(params.id).toArray();
     items.sort((a,b)=>a.at-b.at); return HttpResponse.json({ items });
   })),
+  http.get('/candidates/:id/notes', ({ params }) => withLatency(async ()=>{
+    const items=await db.notes.where('candidateId').equals(params.id).toArray();
+    items.sort((a,b)=>b.at-a.at);
+    return HttpResponse.json({ items });
+  })),
+  http.post('/candidates/:id/notes', ({ params, request }) => withLatency(async ()=>{
+    const body=await request.json();
+    const rec={ id:crypto.randomUUID(), candidateId:params.id, text:body.text, mentions:body.mentions||[], at:Date.now() };
+    await db.notes.put(rec);
+    return HttpResponse.json(rec, { status:201 });
+  }, true)),
+
+  // Assessments
   http.get('/assessments/:jobId', ({ params }) => withLatency(async ()=>{
     const rec=await db.assessments.where('jobId').equals(params.jobId).first();
     return HttpResponse.json(rec || { schema:{ jobId:params.jobId, sections:[] } });
   })),
   http.put('/assessments/:jobId', ({ params, request }) => withLatency(async ()=>{
-    const body=await request.json(); await db.assessments.put({ id:`ass-${params.jobId}`, jobId:params.jobId, schema: body.schema });
+    const body=await request.json();
+    await db.assessments.put({ id:`ass-${params.jobId}`, jobId:params.jobId, schema: body.schema });
     return HttpResponse.json({ ok:true });
   }, true)),
   http.post('/assessments/:jobId/submit', ({ params, request }) => withLatency(async ()=>{
-    const body=await request.json(); await db.responses.put({ id:crypto.randomUUID(), jobId:params.jobId, candidateId:body.candidateId||'anon', answers:body.answers, createdAt:new Date().toISOString() });
+    const body=await request.json();
+    await db.responses.put({ id:crypto.randomUUID(), jobId:params.jobId, candidateId:body.candidateId||'anon', answers:body.answers, createdAt:new Date().toISOString() });
     return HttpResponse.json({ ok:true }, { status:201 });
   }, true)),
 ];
